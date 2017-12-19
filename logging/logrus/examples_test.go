@@ -1,20 +1,31 @@
-package http_logrus_test
+package http_logrus
 
 import (
-	"net/http"
-
+	"github.com/improbable-eng/go-httpwares"
 	"github.com/improbable-eng/go-httpwares/logging/logrus/ctxlogrus"
-	"github.com/improbable-eng/go-httpwares/tags"
+	"github.com/sirupsen/logrus"
+	"net/http"
 )
 
-var handler http.HandlerFunc
-
-// Simple example of a `http.Handler` extracting the `Middleware`-injected logrus logger from the context.
-func ExampleExtract_withCustomTags() {
-	handler = func(resp http.ResponseWriter, req *http.Request) {
-		// Handlers can add extra tags to `http_ctxtags` that will be set in both the extracted loggers *and*
-		// the final log statement.
-		http_ctxtags.ExtractInbound(req).Set("my_custom.my_string", "something").Set("my_custom.my_int", 1337)
-		ctxlogrus.Extract(req.Context()).Warningf("Hello World")
+func ExampleMiddleware() {
+	h := http.NewServeMux()
+	h.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		ctxlogrus.Extract(r.Context()).Info("logging")
+	})
+	hm := Middleware(logrus.WithField("test", "abc"))(h)
+	if err := http.ListenAndServe(":8080", hm); err != nil {
+		panic(err)
 	}
+}
+
+func ExampleWithDecider() {
+	Middleware(logrus.WithField("decider", "test"),
+		WithDecider(func(w httpwares.WrappedResponseWriter, r *http.Request) bool {
+			if r.URL.Path == "/nolog" {
+				// do not want to log request to this endpoint
+				return false
+			}
+			return true
+		}),
+	)
 }

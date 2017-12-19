@@ -6,6 +6,7 @@ package http_logrus
 import (
 	"net/http"
 
+	"github.com/improbable-eng/go-httpwares"
 	"github.com/sirupsen/logrus"
 )
 
@@ -15,6 +16,7 @@ var (
 		levelForConnectivityError: logrus.WarnLevel,
 		requestCaptureFunc:        func(r *http.Request) bool { return false },
 		responseCaptureFunc:       func(r *http.Request, status int) bool { return false },
+		shouldLog:                 defaultDeciderMethod,
 	}
 )
 
@@ -23,6 +25,7 @@ type options struct {
 	levelForConnectivityError logrus.Level
 	requestCaptureFunc        func(r *http.Request) bool
 	responseCaptureFunc       func(r *http.Request, status int) bool
+	shouldLog                 Decider
 }
 
 func evaluateTripperwareOpts(opts []Option) *options {
@@ -98,6 +101,16 @@ func WithResponseBodyCapture(deciderFunc func(r *http.Request, status int) bool)
 	}
 }
 
+// WithDecider customizes the function for deciding if the middleware logs at the end of the request.
+func WithDecider(f Decider) Option {
+	return func(o *options) {
+		o.shouldLog = f
+	}
+}
+
+// Decider function defines rules for suppressing any interceptor logs
+type Decider func(w httpwares.WrappedResponseWriter, r *http.Request) bool
+
 // DefaultMiddlewareCodeToLevel is the default of a mapper between HTTP server-side status codes and logrus log levels.
 func DefaultMiddlewareCodeToLevel(httpStatusCode int) logrus.Level {
 	if httpStatusCode < 400 || httpStatusCode == http.StatusNotFound {
@@ -120,4 +133,8 @@ func DefaultTripperwareCodeToLevel(httpStatusCode int) logrus.Level {
 	} else {
 		return logrus.WarnLevel
 	}
+}
+
+func defaultDeciderMethod(w httpwares.WrappedResponseWriter, r *http.Request) bool {
+	return true
 }
